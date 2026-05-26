@@ -12,6 +12,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * [EN]    REST controller for two-step CAdES (CMS) signing using PKCS#1 (external private key).
@@ -60,6 +63,41 @@ public class CmsPkcs1Controller {
             @RequestParam Map<String, String> allParams) {
         LOGGER.info("CMS PKCS1 finalization request. finalNonce={}", allParams.get("finalNonce"));
         SignResponse response = service.finalizeSignature(allParams);
+        return response != null
+                ? ResponseEntity.ok(response)
+                : ResponseEntity.internalServerError().build();
+    }
+
+    /**
+     * [EN]    Step 1 form variant — documents uploaded, all config params from the request. properties ignored.
+     * [PT-BR] Variante de formulário do passo 1 — documentos enviados, todos os parâmetros de config da requisição. properties ignorado.
+     * [ES]    Variante de formulario del paso 1 — documentos subidos, todos los parámetros de config de la solicitud. properties ignorado.
+     */
+    @CrossOrigin
+    @PostMapping("/prepare/form")
+    public ResponseEntity<PreparedHashesResponse> prepareForm(
+            @RequestParam("document")                                    MultipartFile[] documents,
+            @RequestParam Map<String, String>                            allParams
+    ) throws IOException {
+        LOGGER.info("CMS PKCS1 form preparation request for {} document(s).", documents.length);
+        PreparedHashesResponse response = service.prepareForm(new java.util.HashMap<>(allParams), documents);
+        return response != null
+                ? ResponseEntity.ok(response)
+                : ResponseEntity.internalServerError().build();
+    }
+
+    /**
+     * [EN]    Step 2 form variant — finalNonce + signatureValues + auth + baseUrl all from the request. properties ignored.
+     * [PT-BR] Variante de formulário do passo 2 — finalNonce + signatureValues + auth + baseUrl todos da requisição. properties ignorado.
+     * [ES]    Variante de formulario del paso 2 — finalNonce + signatureValues + auth + baseUrl todos de la solicitud. properties ignorado.
+     */
+    @CrossOrigin
+    @PostMapping("/finalize/form")
+    public ResponseEntity<SignResponse> finalizeForm(
+            @RequestParam Map<String, String> allParams
+    ) {
+        LOGGER.info("CMS PKCS1 form finalization. finalNonce={}", allParams.get("finalNonce"));
+        SignResponse response = service.finalizeForm(new java.util.HashMap<>(allParams));
         return response != null
                 ? ResponseEntity.ok(response)
                 : ResponseEntity.internalServerError().build();

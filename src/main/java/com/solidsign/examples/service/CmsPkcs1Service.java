@@ -166,4 +166,82 @@ public class CmsPkcs1Service {
         }
         return null;
     }
+
+    // ─── Form endpoints (all params from request, properties ignored) ─────────
+
+    /**
+     * [EN]    Step 1 form variant — all parameters from the caller. properties ignored.
+     * [PT-BR] Variante de formulário do passo 1 — todos os parâmetros do chamador. properties ignorado.
+     * [ES]    Variante de formulario del paso 1 — todos los parámetros del llamador. properties ignorado.
+     */
+    public PreparedHashesResponse prepareForm(Map<String, String> params,
+                                              MultipartFile[] documents) throws IOException {
+        String auth       = params.getOrDefault("authorization", "");
+        String apiBaseUrl = params.getOrDefault("baseUrl", "");
+        String profile    = params.get("profile");
+        String hashAlg    = params.get("hashAlgorithm");
+        String packaging  = params.get("signaturePackaging");
+        String policy     = params.get("policyVersion");
+        String cert       = params.get("certificate");
+
+        String prepUrl = apiBaseUrl + "/solidsign/dsig/cms/pkcs1/sign-preparation";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.set("Authorization", auth);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        for (int i = 0; i < documents.length; i++) {
+            final byte[] bytes = documents[i].getBytes();
+            final String name  = documents[i].getOriginalFilename();
+            body.add("document[" + i + "]", new ByteArrayResource(bytes) {
+                @Override public String getFilename() { return name; }
+            });
+        }
+        if (profile   != null && !profile.isBlank())   body.add("profile",            profile);
+        if (hashAlg   != null && !hashAlg.isBlank())   body.add("hashAlgorithm",      hashAlg);
+        if (packaging != null && !packaging.isBlank()) body.add("signaturePackaging", packaging);
+        if (policy    != null && !policy.isBlank())    body.add("policyVersion",      policy);
+        if (cert      != null && !cert.isBlank())      body.add("certificate",        cert);
+        try {
+            ResponseEntity<PreparedHashesResponse> resp = restTemplate.postForEntity(
+                    prepUrl, new HttpEntity<>(body, headers), PreparedHashesResponse.class);
+            if (resp.getStatusCode() == HttpStatus.OK) {
+                LOGGER.info("CMS PKCS1 form preparation OK. finalNonce={}", resp.getBody().finalNonce);
+                return resp.getBody();
+            }
+        } catch (HttpStatusCodeException e) {
+            LOGGER.error("SolidSign prep form error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error in CMS PKCS1 form preparation: {}", e.getMessage(), e);
+        }
+        return null;
+    }
+
+    /**
+     * [EN]    Step 2 form variant — auth and baseUrl taken from allParams map, rest sent as body.
+     * [PT-BR] Variante de formulário do passo 2 — auth e baseUrl retirados do map allParams, resto enviado no body.
+     * [ES]    Variante de formulario del paso 2 — auth y baseUrl tomados del map allParams, el resto enviado como body.
+     */
+    public SignResponse finalizeForm(Map<String, String> allParams) {
+        String auth       = allParams.remove("authorization");
+        String apiBaseUrl = allParams.remove("baseUrl");
+        String finalUrl   = apiBaseUrl + "/solidsign/dsig/cms/pkcs1/sign-finalization";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.set("Authorization", auth);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        allParams.forEach(body::add);
+        try {
+            ResponseEntity<SignResponse> resp = restTemplate.postForEntity(
+                    finalUrl, new HttpEntity<>(body, headers), SignResponse.class);
+            if (resp.getStatusCode() == HttpStatus.OK) {
+                LOGGER.info("CMS PKCS1 form finalization OK.");
+                return resp.getBody();
+            }
+        } catch (HttpStatusCodeException e) {
+            LOGGER.error("SolidSign final form error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error in CMS PKCS1 form finalization: {}", e.getMessage(), e);
+        }
+        return null;
+    }
 }
